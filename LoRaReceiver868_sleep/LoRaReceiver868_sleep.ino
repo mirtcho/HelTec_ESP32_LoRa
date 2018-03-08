@@ -11,7 +11,7 @@
 
 #include <SPI.h>
 #include <LoRa.h>
-
+#include <esp_deep_sleep.h>
 
 #include "SSD1306.h" // alias for `#include "SSD1306Wire.h"`
 
@@ -40,7 +40,7 @@
 
 /* deepsleep definitions */
 #define uS_TO_S_FACTOR 1000000  /* Conversion factor for micro seconds to seconds */
-#define TIME_TO_SLEEP  5        /* Time ESP32 will go to sleep (in seconds) */
+#define TIME_TO_SLEEP  10        /* Time ESP32 will go to sleep (in seconds) */
 
 RTC_DATA_ATTR int bootCount = 0;
 RTC_DATA_ATTR int time_out =0;
@@ -104,7 +104,10 @@ void setup_deep_sleep()
   Left the line commented as an example of how to configure peripherals.
   The line below turns off all RTC peripherals in deep sleep.
   */
-  //esp_deep_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_OFF);
+  esp_deep_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
+  esp_deep_sleep_pd_config(ESP_PD_DOMAIN_RTC_SLOW_MEM, ESP_PD_OPTION_ON);
+  esp_deep_sleep_pd_config(ESP_PD_DOMAIN_RTC_FAST_MEM, ESP_PD_OPTION_ON);
+  
   //Serial.println("Configured all RTC Peripherals to be powered down in sleep");
 
   /*
@@ -125,6 +128,7 @@ void do_setup(int boot_cnt)
   display.println("LoRa Receiver");
   display.drawLogBuffer(0, 0);
   display.display();
+  
   Serial.begin(9600);
   while (!Serial); //test this program,you must connect this board to a computer
   Serial.println("LoRa Receiver");
@@ -136,12 +140,11 @@ void do_setup(int boot_cnt)
   delay(50);
   // set SS high
   digitalWrite(SS, HIGH);
-
   SPI.begin(SCK,MISO,MOSI,SS);
-  uint8_t version = LoRa.readRegister(0x42);//read reg version
-  Serial.print("SPI_REG_VER="); Serial.println(version);
+  //Serial.print("after boot REG_OP_MODE="); Serial.println(LoRa.readRegister(0x1));
+  
   LoRa.setPins(SS,RST,DI0);
-  if (boot_cnt==0)
+  if (boot_cnt<=2)
   {
     if (!LoRa.begin(BAND,PABOOST )) {
       Serial.println("Starting LoRa failed!");
@@ -150,6 +153,15 @@ void do_setup(int boot_cnt)
     LoRa.setSignalBandwidth(125e3);
     LoRa.setSpreadingFactor(11);
   }
+  if (boot_cnt==2){
+    Serial.println("Dump after setup boot_cnt==2");
+    LoRa.dumpRegisters(Serial);
+  }
+  //if (boot_cnt==20){
+  //  LoRa.dumpRegisters(Serial);
+  //  while (1){
+  //  }
+  //}
 }
 
 void do_loop ()
@@ -211,11 +223,10 @@ void setup() {
   setup_deep_sleep();
 
   bootCount++;
-  //delay(1000); hold the OLED display for a while
+  //Serial.print("before sleep REG_OP_MODE="); Serial.println(LoRa.readRegister(0x1));
   Serial.println("Going to sleep now");
   esp_deep_sleep_start();
   Serial.println("This will never be printed");
-
 }
 
 void loop() {
